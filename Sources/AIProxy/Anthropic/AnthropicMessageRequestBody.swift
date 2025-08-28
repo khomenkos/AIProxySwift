@@ -382,7 +382,7 @@ public enum AnthropicToolChoice: Encodable {
 }
 
 
-public struct AnthropicTool: Encodable {
+public struct AnthropicToolFunction: Encodable {
     /// Description of what this tool does.
     /// Tool descriptions should be as detailed as possible. The more information that the
     /// model has about what the tool is and how to use it, the better it will perform. You can
@@ -426,5 +426,67 @@ public struct AnthropicTool: Encodable {
         self.description = description
         self.inputSchema = inputSchema
         self.name = name
+    }
+}
+
+public struct AnthropicWebSearchTool: Encodable {
+    public let type: String = "web_search_20250305"
+    public let name: String
+    public let maxUses: Int?
+    public let allowedDomains: [String]?
+    public let blockedDomains: [String]?
+    public let userLocation: UserLocation?
+
+    public struct UserLocation: Encodable {
+        public let type: String // "approximate"
+        public let city: String?
+        public let region: String?
+        public let country: String?
+        public let timezone: String?
+
+        enum CodingKeys: String, CodingKey {
+            case type
+            case city
+            case region
+            case country
+            case timezone
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case name
+        case maxUses = "max_uses"
+        case allowedDomains = "allowed_domains"
+        case blockedDomains = "blocked_domains"
+        case userLocation = "user_location"
+    }
+
+    public init(
+        name: String = "web_search",
+        maxUses: Int? = 10,
+        allowedDomains: [String]? = nil,
+        blockedDomains: [String]? = nil,
+        userLocation: UserLocation? = nil
+    ) {
+        self.name = name
+        self.maxUses = maxUses
+        self.allowedDomains = allowedDomains
+        self.blockedDomains = blockedDomains
+        self.userLocation = userLocation
+    }
+}
+
+public enum AnthropicTool: Encodable {
+    case function(AnthropicToolFunction)
+    case webSearch(AnthropicWebSearchTool)
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .function(let tool):
+            try tool.encode(to: encoder)
+        case .webSearch(let tool):
+            try tool.encode(to: encoder)
+        }
     }
 }
