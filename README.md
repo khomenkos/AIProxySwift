@@ -262,7 +262,10 @@ This is useful for `o1` and `o3` models.
     )
 
     do {
-        let stream = try await openAIService.streamingChatCompletionRequest(body: requestBody)
+        let stream = try await openAIService.streamingChatCompletionRequest(
+            body: requestBody,
+            secondsToWait: 60
+        )
         for try await chunk in stream {
             print(chunk.choices.first?.delta.content ?? "")
         }
@@ -2948,8 +2951,7 @@ Use the file URL returned from the snippet above.
 ```
 
 
-### How to edit an image with Gemini
-
+### How to edit an image with Gemini using the nano banana model
 
 ```swift
     import AIProxy
@@ -2964,6 +2966,11 @@ Use the file URL returned from the snippet above.
     //     partialKey: "partial-key-from-your-developer-dashboard",
     //     serviceURL: "service-url-from-your-developer-dashboard"
     // )
+
+    guard let image = UIImage(named: "myImage") else {
+        print("Could not find an image named 'myImage' in your app assets")
+        return
+    }
 
     guard let pngData = yourUIImage.pngData() else {
         print("Could not get png data from your image")
@@ -3001,7 +3008,7 @@ Use the file URL returned from the snippet above.
     do {
         let response = try await geminiService.generateContentRequest(
             body: requestBody,
-            model: "gemini-2.0-flash-exp-image-generation",
+            model: "gemini-2.5-flash-image-preview",
             secondsToWait: 120
         )
         for part in response.candidates?.first?.content?.parts ?? [] {
