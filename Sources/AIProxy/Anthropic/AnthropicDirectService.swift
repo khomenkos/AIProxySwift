@@ -80,4 +80,31 @@ open class AnthropicDirectService: AnthropicService, DirectService {
         let (asyncBytes, _) = try await BackgroundNetworker.makeRequestAndWaitForAsyncBytes(self.urlSession, request)
         return AnthropicAsyncChunks(asyncLines: asyncBytes.lines)
     }
+    
+    public func streamingMessageRequestV2(
+        body: AnthropicMessageRequestBody
+    ) async throws -> AsyncThrowingStream<AnthropicMessageStreamResponse, any Error> {
+        var body = body
+        body.stream = true
+        var additionalHeaders = [
+            "x-api-key": self.unprotectedAPIKey,
+            "anthropic-version": "2023-06-01",
+        ]
+        if body.needsPDFBeta {
+            additionalHeaders["anthropic-beta"] = "pdfs-2024-09-25"
+        }
+        
+        let request = try AIProxyURLRequest.createDirect(
+            baseURL: self.baseURL,
+            path: "/v1/messages",
+            body: try body.serialize(),
+            verb: .post,
+            secondsToWait: 60,
+            contentType: "application/json",
+            additionalHeaders: additionalHeaders
+        )
+        
+        let (asyncBytes, _) = try await BackgroundNetworker.makeRequestAndWaitForAsyncBytes(self.urlSession, request)
+        return try await fetchStream(type: AnthropicMessageStreamResponse.self, with: asyncBytes)
+    }
 }

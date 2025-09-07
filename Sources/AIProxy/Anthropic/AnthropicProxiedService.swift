@@ -84,4 +84,29 @@ open class AnthropicProxiedService: AnthropicService, ProxiedService {
         let (asyncBytes, _) = try await BackgroundNetworker.makeRequestAndWaitForAsyncBytes(self.urlSession, request)
         return AnthropicAsyncChunks(asyncLines: asyncBytes.lines)
     }
+    
+    public func streamingMessageRequestV2(body: AnthropicMessageRequestBody) async throws -> AsyncThrowingStream<AnthropicMessageStreamResponse, any Error> {
+        var body = body
+        body.stream = true
+        var additionalHeaders = [
+            "anthropic-version": "2023-06-01",
+        ]
+        if body.needsPDFBeta {
+            additionalHeaders["anthropic-beta"] = "pdfs-2024-09-25"
+        }
+        let request = try await AIProxyURLRequest.create(
+            partialKey: self.partialKey,
+            serviceURL: self.serviceURL,
+            clientID: self.clientID,
+            proxyPath: "/v1/messages",
+            body: try body.serialize(),
+            verb: .post,
+            secondsToWait: 60,
+            contentType: "application/json",
+            additionalHeaders: additionalHeaders
+        )
+        let (asyncBytes, _) = try await BackgroundNetworker.makeRequestAndWaitForAsyncBytes(self.urlSession, request)
+        
+        return try await fetchStream(type: AnthropicMessageStreamResponse.self, with: asyncBytes)
+    }
 }
