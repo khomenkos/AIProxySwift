@@ -20,7 +20,7 @@ import Foundation
 /// A final message_stop event.
 ///
 /// This structured sequence facilitates the orderly reception and processing of message components and overall changes.
-public struct AnthropicMessageStreamResponse: Decodable {
+public struct AnthropicMessageStreamResponse: Decodable, @unchecked Sendable {
    
    public let type: String
    

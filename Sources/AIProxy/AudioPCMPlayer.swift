@@ -23,8 +23,7 @@ import Accelerate
 ///
 /// See the "Sidenote" section here for the unfortunate dependency on order:
 /// https://stackoverflow.com/questions/57612695/avaudioplayer-volume-low-with-voiceprocessingio
-@RealtimeActor
-internal class AudioPCMPlayer {
+@AIProxyActor final class AudioPCMPlayer {
 
     let audioEngine: AVAudioEngine
     var currentRMS: ((Float) -> Void)?
@@ -32,7 +31,6 @@ internal class AudioPCMPlayer {
     private let playableFormat: AVAudioFormat
     private let playerNode: AVAudioPlayerNode
 
-    @RealtimeActor
     init(audioEngine: AVAudioEngine) async throws {
         self.audioEngine = audioEngine
         guard let inputFormat = AVAudioFormat(

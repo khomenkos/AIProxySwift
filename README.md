@@ -962,8 +962,52 @@ This example it taken from OpenAI's [function calling guide](https://platform.op
     }
 ```
 
+### How to transcribe audio with OpenAI
+1. Record an audio file in quicktime and save it as "helloworld.m4a"
+2. Add the audio file to your Xcode project. Make sure it's included in your target: select your audio file in the project tree, type `cmd-opt-0` to open the inspect panel, and view `Target Membership`
+3. Run this snippet:
 
-### How to get Whisper word-level timestamps in an audio transcription
+```swift
+    import AIProxy
+
+    /* Uncomment for BYOK use cases */
+    // let openAIService = AIProxy.openAIDirectService(
+    //     unprotectedAPIKey: "your-openai-key"
+    // )
+
+    /* Uncomment for all other production use cases */
+    // let openAIService = AIProxy.openAIService(
+    //     partialKey: "partial-key-from-your-developer-dashboard",
+    //     serviceURL: "service-url-from-your-developer-dashboard"
+    // )
+
+    guard let url = Bundle.main.url(forResource: "helloworld", withExtension: "m4a"),
+          let fileContents = try? Data(contentsOf: url)
+    else {
+        print("Could not read file contents of helloworld.m4a")
+        return
+    }
+
+    do {
+        let requestBody = OpenAICreateTranscriptionRequestBody(
+            file: fileContents,
+            model: "gpt-4o-mini-transcribe",
+            responseFormat: "text"
+        )
+        let response = try await openAIService.createTranscriptionRequest(
+            body: requestBody,
+            secondsToWait: 120
+        )
+        print(response.text)
+    } catch AIProxyError.unsuccessfulRequest(let statusCode, let responseBody) {
+        print("Received non-200 status code: \(statusCode) with response body: \(responseBody)")
+    } catch {
+        print("Could not transcribe audio with OpenAI: \(error.localizedDescription)")
+    }
+```
+
+
+### How to get Whisper word-level timestamps in an audio transcription with OpenAI
 
 1. Record an audio file in quicktime and save it as "helloworld.m4a"
 2. Add the audio file to your Xcode project. Make sure it's included in your target: select your audio file in the project tree, type `cmd-opt-0` to open the inspect panel, and view `Target Membership`
@@ -983,10 +1027,16 @@ This example it taken from OpenAI's [function calling guide](https://platform.op
     //     serviceURL: "service-url-from-your-developer-dashboard"
     // )
 
+    guard let url = Bundle.main.url(forResource: "helloworld", withExtension: "m4a"),
+          let fileContents = try? Data(contentsOf: url)
+    else {
+        print("Could not read file contents of helloworld.m4a")
+        return
+    }
+
     do {
-        let url = Bundle.main.url(forResource: "helloworld", withExtension: "m4a")!
         let requestBody = OpenAICreateTranscriptionRequestBody(
-            file: try Data(contentsOf: url),
+            file: fileContents,
             model: "whisper-1",
             responseFormat: "verbose_json",
             timestampGranularities: [.word, .segment]
@@ -1199,7 +1249,7 @@ This example it taken from OpenAI's [function calling guide](https://platform.op
 ```
 
 
-### How use realtime audio with OpenAI 
+### How to use realtime audio with OpenAI
 
 Use this example to have a conversation with OpenAI's realtime models.
 
@@ -1264,7 +1314,7 @@ struct ContentView: View {
 }
 
 
-@RealtimeActor
+@AIProxyActor
 final class RealtimeManager {
     private var realtimeSession: OpenAIRealtimeSession?
     private var audioController: AudioController?
@@ -6715,7 +6765,7 @@ Contributions are welcome! This library uses the MIT license.
   in the same namespace as the top level struct. For examples:
 
     ```swift
-    public struct ProviderResponseBody: Decodable {
+    public struct ProviderResponseBody: Decodable, Sendable {
 
         public let status: Status?
 
@@ -6724,7 +6774,7 @@ Contributions are welcome! This library uses the MIT license.
 
     // MARK: -
     extension ProviderResponseBody {
-        public enum Status: String, Decodable {
+        public enum Status: String, Decodable, Sendable {
             case succeeded
             case failed
             case canceled
@@ -6738,8 +6788,8 @@ Contributions are welcome! This library uses the MIT license.
   You may wonder why we don't nest all types within the original top level type definition:
 
   ```swift
-  public struct ProviderResponseBody: Decodable {
-      public enum Status: String, Decodable {
+  public struct ProviderResponseBody: Decodable, Sendable {
+      public enum Status: String, Decodable, Sendable {
           ...
       }
   }
@@ -6760,7 +6810,7 @@ Contributions are welcome! This library uses the MIT license.
 
     ```swift
     // ProviderResponseBody.swift
-    public struct ProviderResponseBody: Decodable {
+    public struct ProviderResponseBody: Decodable, Sendable {
 
         // An examples status
         public let status: ProviderStatus?
@@ -6769,7 +6819,7 @@ Contributions are welcome! This library uses the MIT license.
     }
 
     // ProviderStatus.swift
-    public enum ProviderStatus: String, Decodable {
+    public enum ProviderStatus: String, Decodable, Sendable {
         case succeeded
         case failed
         case canceled
@@ -6833,7 +6883,7 @@ built-in service, take the following steps to add a custom service to your app:
     You would define a response body that looks like this:
 
     ```swift
-        struct ChatResponseBody: Decodable {
+        struct ChatResponseBody: Decodable, Sendable {
             let generatedMessage: String?
 
             enum CodingKeys: String, CodingKey {

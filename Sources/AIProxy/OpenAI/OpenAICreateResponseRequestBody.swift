@@ -14,7 +14,10 @@ import Foundation
 /// Allow the model access to external systems and data using function calling.
 /// https://platform.openai.com/docs/api-reference/responses/create
 /// Implementor's note: See ResponseCreateParamsBase in `src/openai/types/responses/response_create_params.py`
-public struct OpenAICreateResponseRequestBody: Encodable {
+nonisolated public struct OpenAICreateResponseRequestBody: Encodable, Sendable {
+
+    /// Specify additional output data to include in the model response.
+    public let include: [Include]?
 
     /// Text, image, or file inputs to the model, used to generate a response.
     public let input: OpenAIResponse.Input?
@@ -80,6 +83,7 @@ public struct OpenAICreateResponseRequestBody: Encodable {
     public let user: String?
 
     private enum CodingKeys: String, CodingKey {
+        case include
         case input
         case model
         case tools
@@ -101,6 +105,7 @@ public struct OpenAICreateResponseRequestBody: Encodable {
     // To regenerate, use `cmd-shift-a` > Generate Memberwise Initializer
     // To format, place the cursor in the initializer's parameter list and use `ctrl-m`
     public init(
+        include: [Include]? = nil,
         input: OpenAIResponse.Input? = nil,
         model: String? = nil,
         parallelToolCalls: Bool? = nil,
@@ -117,6 +122,7 @@ public struct OpenAICreateResponseRequestBody: Encodable {
         truncation: OpenAICreateResponseRequestBody.Truncation? = nil,
         user: String? = nil
     ) {
+        self.include = include
         self.input = input
         self.model = model
         self.parallelToolCalls = parallelToolCalls
@@ -140,8 +146,32 @@ public struct OpenAICreateResponseRequestBody: Encodable {
 
 extension OpenAICreateResponseRequestBody {
 
+    /// Specify additional output data to include in the model response.
+    nonisolated public enum Include: String, Codable, Sendable {
+        /// Include the outputs of python code execution in code interpreter tool call items.
+        case codeInterpreterCallOutputs = "code_interpreter_call.outputs"
+        
+        /// Include image urls from the computer call output.
+        case computerCallOutputImageUrl = "computer_call_output.output.image_url"
+        
+        /// Include the search results of the file search tool call.
+        case fileSearchCallResults = "file_search_call.results"
+        
+        /// Include image urls from the input message.
+        case messageInputImageImageUrl = "message.input_image.image_url"
+        
+        /// Include logprobs with assistant messages.
+        case messageOutputTextLogprobs = "message.output_text.logprobs"
+        
+        /// Includes an encrypted version of reasoning tokens in reasoning item outputs.
+        case reasoningEncryptedContent = "reasoning.encrypted_content"
+        
+        /// Include the sources of the web search tool call.
+        case webSearchCallActionSources = "web_search_call.action.sources"
+    }
+
     /// The truncation strategy to use for the model response.
-    public enum Truncation: String, Encodable {
+    nonisolated public enum Truncation: String, Encodable, Sendable {
         /// If the context of this response and previous ones exceeds the model's context window size, the model will truncate the response to fit the context window by dropping input items in the middle of the conversation.
         case auto
 
@@ -149,7 +179,7 @@ extension OpenAICreateResponseRequestBody {
         case disabled
     }
 
-    public struct Prompt: Encodable {
+    nonisolated public struct Prompt: Encodable, Sendable {
         /// The unique identifier of the prompt template to use.
         public let id: String
 
@@ -170,7 +200,7 @@ extension OpenAICreateResponseRequestBody {
         }
     }
 
-    public enum Variable: Encodable {
+    nonisolated public enum Variable: Encodable, Sendable {
         case text(String)
 
         public func encode(to encoder: any Encoder) throws {
@@ -187,7 +217,7 @@ extension OpenAICreateResponseRequestBody {
 extension OpenAICreateResponseRequestBody {
     /// A tool specification that models can use in responses.
     /// See https://platform.openai.com/docs/guides/tools
-    public enum Tool: Codable {
+    nonisolated public enum Tool: Codable, Sendable {
 
         /// Build a computer-using agent that can perform tasks on your behalf.
         /// https://platform.openai.com/docs/guides/tools-computer-use
@@ -204,6 +234,12 @@ extension OpenAICreateResponseRequestBody {
         /// Allow models to search the web for the latest information before generating a response.
         /// https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses
         case webSearch(WebSearchTool)
+
+        /// Allow models to search the web for the latest information before generating a response (preview version).
+        /// https://platform.openai.com/docs/guides/tools-web-search?api-mode=respons
+        /// Not including the deprecated message as it causes a compiler warning in our own decoder conformance on OpenAIResponseTool.
+        // @available(*, deprecated, message: "Use webSearch if using a modern GPT model. webSearchPreview will be removed in a future version.")
+        case webSearchPreview(WebSearchPreviewTool)
 
         private enum CodingKeys: String, CodingKey {
             case description
@@ -234,6 +270,11 @@ extension OpenAICreateResponseRequestBody {
                 try container.encodeIfPresent(tool.rankingOptions, forKey: .rankingOptions)
 
             case .webSearch(let tool):
+                try container.encode("web_search", forKey: .type)
+                try container.encodeIfPresent(tool.searchContextSize, forKey: .searchContextSize)
+                try container.encodeIfPresent(tool.userLocation, forKey: .userLocation)
+
+            case .webSearchPreview(let tool):
                 try container.encode("web_search_preview", forKey: .type)
                 try container.encodeIfPresent(tool.searchContextSize, forKey: .searchContextSize)
                 try container.encodeIfPresent(tool.userLocation, forKey: .userLocation)
@@ -265,10 +306,15 @@ extension OpenAICreateResponseRequestBody {
                 let rankingOptions = try container.decodeIfPresent(FileSearchTool.RankingOptions.self, forKey: .rankingOptions)
                 self = .fileSearch(FileSearchTool(vectorStoreIDs: vectorStoreIDs, filters: filters, maxNumResults: maxNumResults, rankingOptions: rankingOptions))
 
-            case "web_search_preview":
+            case "web_search":
                 let searchContextSize = try container.decodeIfPresent(WebSearchTool.SearchContextSize.self, forKey: .searchContextSize)
                 let userLocation = try container.decodeIfPresent(WebSearchTool.UserLocation.self, forKey: .userLocation)
                 self = .webSearch(WebSearchTool(searchContextSize: searchContextSize, userLocation: userLocation))
+
+            case "web_search_preview":
+                let searchContextSize = try container.decodeIfPresent(WebSearchTool.SearchContextSize.self, forKey: .searchContextSize)
+                let userLocation = try container.decodeIfPresent(WebSearchTool.UserLocation.self, forKey: .userLocation)
+                self = .webSearchPreview(WebSearchTool(searchContextSize: searchContextSize, userLocation: userLocation))
 
             case "computer_use_preview":
                 let displayWidth = try container.decode(Int.self, forKey: .displayWidth)
@@ -294,7 +340,7 @@ extension OpenAICreateResponseRequestBody {
     }
 
     // MARK: - File Search Tool
-    public struct FileSearchTool: Codable {
+    nonisolated public struct FileSearchTool: Codable, Sendable {
 
         // Required
         /// The type of the file search tool. Always `file_search`.
@@ -334,7 +380,7 @@ extension OpenAICreateResponseRequestBody {
             self.rankingOptions = rankingOptions
         }
 
-        public struct RankingOptions: Codable {
+        nonisolated public struct RankingOptions: Codable, Sendable {
             /// The ranker to use for the file search.
             public let ranker: String?
 
@@ -354,7 +400,7 @@ extension OpenAICreateResponseRequestBody {
         }
     }
 
-    public enum FileSearchFilter: Codable {
+    nonisolated public enum FileSearchFilter: Codable, Sendable {
         case comparison(ComparisonFilter)
         case compound(CompoundFilter)
 
@@ -367,7 +413,7 @@ extension OpenAICreateResponseRequestBody {
         }
 
         /// A filter used to compare a specified attribute key to a given value using a defined comparison operation.
-        public struct ComparisonFilter: Codable {
+        nonisolated public struct ComparisonFilter: Codable, Sendable {
             /// The key to compare against the value.
             public let key: String
 
@@ -384,7 +430,7 @@ extension OpenAICreateResponseRequestBody {
             }
         }
 
-        public enum ComparisonOperator: String, Codable {
+        nonisolated public enum ComparisonOperator: String, Codable, Sendable {
             case eq
             case ne
             case gt
@@ -394,7 +440,7 @@ extension OpenAICreateResponseRequestBody {
         }
 
         /// Combine multiple filters using `and` or `or`.
-        public struct CompoundFilter: Codable {
+        nonisolated public struct CompoundFilter: Codable, Sendable {
             /// Array of filters to combine. Items can be `ComparisonFilter` or `CompoundFilter`.
             public let filters: [FileSearchFilter]
 
@@ -407,21 +453,21 @@ extension OpenAICreateResponseRequestBody {
             }
         }
 
-        public enum CompoundOperator: String, Codable {
+        nonisolated public enum CompoundOperator: String, Codable, Sendable {
             case and
             case or
         }
     }
 
     // MARK: - Web Search Tool
-    public struct WebSearchTool: Codable {
+    nonisolated public struct WebSearchTool: Codable, Sendable {
         private enum CodingKeys: String, CodingKey {
             case type
             case searchContextSize = "search_context_size"
             case userLocation = "user_location"
         }
 
-        public let type = "web_search_preview"
+        public let type = "web_search"
         public let searchContextSize: SearchContextSize?
         public let userLocation: UserLocation?
 
@@ -433,13 +479,13 @@ extension OpenAICreateResponseRequestBody {
             self.userLocation = userLocation
         }
 
-        public enum SearchContextSize: String, Codable {
+        nonisolated public enum SearchContextSize: String, Codable, Sendable {
             case high
             case medium
             case low
         }
 
-        public struct UserLocation: Codable {
+        nonisolated public struct UserLocation: Codable, Sendable {
             public var type = "approximate"
             public let city: String?
             public let country: String?
@@ -460,8 +506,13 @@ extension OpenAICreateResponseRequestBody {
         }
     }
 
+    // MARK: - Web Search Tool (Preview)
+    // Not including the deprecated message as it causes a compiler warning in our own decoder conformance on OpenAIResponseTool.
+    // @available(*, deprecated, message: "Use WebSearchTool instead. WebSearchPreviewTool will be removed in a future version.")
+    public typealias WebSearchPreviewTool = WebSearchTool
+
     // MARK: - Computer Use Tool
-    public struct ComputerUseTool: Codable {
+    nonisolated public struct ComputerUseTool: Codable, Sendable {
         private enum CodingKeys: String, CodingKey {
             case type
             case displayWidth = "display_width"
@@ -484,7 +535,7 @@ extension OpenAICreateResponseRequestBody {
             self.environment = environment
         }
 
-        public enum Environment: String, Codable {
+        nonisolated public enum Environment: String, Codable, Sendable {
             case browser
             case mac
             case windows
@@ -493,7 +544,7 @@ extension OpenAICreateResponseRequestBody {
     }
 
     // MARK: - Function Tool
-    public struct FunctionTool: Codable {
+    nonisolated public struct FunctionTool: Codable, Sendable {
         // Required
 
         /// The name of the function to call.
@@ -538,7 +589,7 @@ extension OpenAICreateResponseRequestBody {
 // MARK: - Reasoning
 extension OpenAICreateResponseRequestBody {
     /// Configuration options for reasoning models
-    public struct Reasoning: Encodable {
+    nonisolated public struct Reasoning: Encodable, Sendable {
         private enum CodingKeys: String, CodingKey {
             case effort
             case generateSummary = "generate_summary"
@@ -578,7 +629,7 @@ extension OpenAICreateResponseRequestBody {
             } else {
                 self.summary = nil
             }
-            
+
             self.generateSummary = nil
         }
     }
@@ -587,7 +638,7 @@ extension OpenAICreateResponseRequestBody {
 // MARK: - Reasoning Types
 extension OpenAICreateResponseRequestBody.Reasoning {
     /// Supported effort levels for reasoning models
-    public enum Effort: String, Encodable {
+    nonisolated public enum Effort: String, Encodable, Sendable {
         case minimal
         case low
         case medium
@@ -595,7 +646,7 @@ extension OpenAICreateResponseRequestBody.Reasoning {
     }
 
     /// Summary types for reasoning models
-    public enum SummaryType: String, Encodable {
+    nonisolated public enum SummaryType: String, Encodable, Sendable {
         case auto
         case concise
         case detailed
@@ -604,7 +655,7 @@ extension OpenAICreateResponseRequestBody.Reasoning {
 
 // MARK: - Tool Choice
 extension OpenAICreateResponseRequestBody {
-    public enum ToolChoice: Codable {
+    nonisolated public enum ToolChoice: Codable, Sendable {
         case none
         case auto
         case required

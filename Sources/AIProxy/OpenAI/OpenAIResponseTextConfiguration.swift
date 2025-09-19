@@ -6,7 +6,7 @@
 //
 
 extension OpenAIResponse {
-    public struct TextConfiguration: Codable {
+    nonisolated public struct TextConfiguration: Codable, Sendable {
         /// The format specification for the text output
         public let format: Format?
 
@@ -24,7 +24,7 @@ extension OpenAIResponse {
 extension OpenAIResponse.TextConfiguration {
     /// An object specifying the format that the model must output.
     /// The case `.jsonObject` is **not recommended for gpt-4o and newer models.**
-    public enum Format: Codable {
+    nonisolated public enum Format: Codable, Sendable {
 
         /// This case is no longer recommended.
         /// Using `.jsonSchema` is preferred for models that support it.
@@ -51,7 +51,7 @@ extension OpenAIResponse.TextConfiguration {
         ///
         ///   - strict: Whether to enable strict schema adherence when generating the output. If set to true, the
         ///             model will always follow the exact schema defined in the schema field. Only a subset of JSON Schema
-        ///             is supported when strict is true. To learn more, read the Structured Outputs guide.
+        ///             is supported when strict is true. To learn more, read the [Structured Outputs guide](https://platform.openai.com/docs/guides/structured-outputs)
         case jsonSchema(
             name: String,
             schema: [String: AIProxyJSONValue],
@@ -125,7 +125,7 @@ extension OpenAIResponse.TextConfiguration {
     }
 
     /// Supported verbosity levels for model responses
-    public enum Verbosity: String, Codable {
+    nonisolated public enum Verbosity: String, Codable, Sendable {
         case low
         case medium
         case high
